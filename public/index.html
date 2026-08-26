@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ghép Ảnh Liên Quân — Miễn phí</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand__logo" id="brandLogo">⚔️</div>
+      <div>
+        <div class="brand__name" id="brandName">Ghép Ảnh Liên Quân</div>
+        <div class="brand__tag" id="brandTag">MIỄN PHÍ TOÀN BỘ</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <a href="index.html" class="active"><span class="ico">🖼️</span> Ghép Ảnh</a>
+      <a href="#history"><span class="ico">🕘</span> Lịch sử ghép</a>
+      <a id="supportLink" href="#" target="_blank"><span class="ico">💬</span> Group hỗ trợ</a>
+    </nav>
+    <div class="nav-spacer"></div>
+    <div class="sidebar-foot">© 2026 · Bản mở miễn phí</div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <button class="btn ghost small" id="menuBtn" style="display:none;">☰ Menu</button>
+      <span class="pill">👋 Khách · không cần đăng nhập</span>
+      <span class="pill free">✓ TẤT CẢ TIỆN ÍCH ĐANG MỞ MIỄN PHÍ</span>
+    </div>
+
+    <div class="content">
+      <section class="hero">
+        <span class="hero__badge">● FREE EDITION</span>
+        <h1 id="heroTitle">Ghép ảnh đội hình, mở toàn bộ tiện ích</h1>
+        <p id="heroSub">Không thu phí, không giới hạn số lượt ghép. Toàn bộ xử lý ảnh diễn ra ngay trên trình duyệt của bạn — không gửi dữ liệu lên máy chủ nào cả.</p>
+        <div class="hero__glyphs"><div class="glyph"></div><div class="glyph"></div><div class="glyph"></div><div class="glyph"></div></div>
+      </section>
+
+      <div class="grid">
+        <div id="widgetsCol"><!-- rendered by app.js --></div>
+
+        <div class="preview">
+          <div class="card" style="margin-bottom:16px;">
+            <div class="card__head">
+              <div class="card__title">Kết quả ghép ảnh</div>
+              <span class="tag" style="position:static;">MIỄN PHÍ</span>
+            </div>
+            <div class="preview__canvas-wrap" id="canvasWrap">
+              <div class="preview__placeholder" id="canvasPlaceholder">Ảnh ghép sẽ hiển thị ở đây sau khi hoàn tất</div>
+              <canvas id="resultCanvas" width="720" height="900" style="display:none;"></canvas>
+            </div>
+            <button class="btn" id="generateBtn">⚡ Ghép Ảnh Tự Động</button>
+            <button class="btn ghost small" id="downloadBtn" style="width:100%;margin-top:8px;display:none;">⬇ Tải ảnh về máy</button>
+          </div>
+
+          <div class="card" id="history">
+            <div class="card__head">
+              <div class="card__title">Ghép gần đây</div>
+              <button class="btn ghost small" id="clearHistBtn">Xoá</button>
+            </div>
+            <div class="history" id="historyList"></div>
+          </div>
+        </div>
+      </div>
+
+      <footer class="page-foot">Tool ghép ảnh liên quân · phiên bản mở miễn phí, tuỳ biến qua Trang quản trị</footer>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg"></span></div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

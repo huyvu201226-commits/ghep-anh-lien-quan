@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trang quản trị — Ghép Ảnh Liên Quân</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="admin.css">
+</head>
+<body>
+
+<div class="admin-shell">
+  <aside class="admin-side">
+    <div class="brand">
+      <div class="brand__logo" id="brandLogo">🛠️</div>
+      <div>
+        <div class="brand__name">Trang quản trị</div>
+        <div class="brand__tag" id="brandTag">CONTROL PANEL</div>
+      </div>
+    </div>
+    <div class="admin-tabs">
+      <button data-tab="guide" class="active"><span>📘</span> Hướng dẫn</button>
+      <button data-tab="branding"><span>🏷️</span> Thương hiệu</button>
+      <button data-tab="theme"><span>🎨</span> Màu sắc & nền</button>
+      <button data-tab="widgets"><span>🧩</span> Tiện ích & bố cục</button>
+      <button data-tab="library"><span>🖼️</span> Thư viện trang phục</button>
+      <button data-tab="preview"><span>👁️</span> Xem trước</button>
+    </div>
+    <div class="nav-spacer"></div>
+    <a href="index.html" class="btn ghost small" style="text-align:center;text-decoration:none;">← Về trang người dùng</a>
+    <div class="sidebar-foot">Mọi thay đổi lưu tại trình duyệt này</div>
+  </aside>
+
+  <main class="admin-main">
+    <div class="top-actions">
+      <button class="btn ghost small" id="resetBtn">↺ Khôi phục mặc định</button>
+      <button class="btn gold small" id="saveBtn">💾 Lưu thay đổi</button>
+    </div>
+
+    <!-- GUIDE -->
+    <section class="panel active" data-panel="guide">
+      <h2 class="section-title">Hướng dẫn sử dụng</h2>
+      <p class="section-sub">Trang này giúp bạn tuỳ chỉnh giao diện trang Ghép Ảnh mà không cần biết code. Đọc nhanh 4 bước dưới đây trước khi bắt đầu.</p>
+
+      <div class="guide-steps">
+        <div class="guide-step">
+          <div class="guide-num">1</div>
+          <div>
+            <div class="guide-step-title">Đổi thương hiệu</div>
+            <div class="guide-step-desc">Vào tab <b>🏷️ Thương hiệu</b> — đổi tên trang, khẩu hiệu, logo (emoji hoặc ảnh) và link nhóm hỗ trợ.</div>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="guide-num">2</div>
+          <div>
+            <div class="guide-step-title">Chọn màu & nền</div>
+            <div class="guide-step-desc">Vào tab <b>🎨 Màu sắc & nền</b> — bấm vào từng ô màu để đổi, có thể tải thêm ảnh nền cho toàn trang.</div>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="guide-num">3</div>
+          <div>
+            <div class="guide-step-title">Thêm trang phục vào thư viện</div>
+            <div class="guide-step-desc">Vào tab <b>🖼️ Thư viện trang phục</b> — chọn tướng (hoặc gõ tên tướng mới), đặt tên trang phục, tải ảnh từ máy lên, tick phụ kiện nếu có (nút bấm / thông báo hạ) rồi bấm <b>Thêm vào thư viện</b>.</div>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="guide-num">4</div>
+          <div>
+            <div class="guide-step-title">Sắp xếp tiện ích</div>
+            <div class="guide-step-desc">Vào tab <b>🧩 Tiện ích & bố cục</b> — đổi tên hiển thị từng khối, bật/tắt bằng công tắc, dùng nút ▲ ▼ để đổi thứ tự.</div>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="guide-num">5</div>
+          <div>
+            <div class="guide-step-title">Lưu & xem trước</div>
+            <div class="guide-step-desc">Luôn bấm <b>💾 Lưu thay đổi</b> ở góc trên để áp dụng. Sau đó qua tab <b>👁️ Xem trước</b> để kiểm tra kết quả ngay lập tức.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card guide-tip">
+        <div class="card__head"><div class="card__title">⚠️ Lưu ý khi mở file trực tiếp</div></div>
+        <p>Nếu bạn mở <code>admin.html</code> hoặc <code>index.html</code> bằng cách nhấp đúp vào file, một số trình duyệt (như Chrome) sẽ <b>chặn chia sẻ dữ liệu</b> giữa hai trang — nghĩa là thay đổi trong trang quản trị sẽ không hiện trên trang người dùng.</p>
+        <p><b>Cách khắc phục:</b> mở Terminal / Command Prompt tại thư mục chứa các file, chạy lệnh:</p>
+        <pre>python3 -m http.server 8000</pre>
+        <p>rồi mở <code>http://localhost:8000/index.html</code> và <code>http://localhost:8000/admin.html</code> trên trình duyệt. Đây cũng là cách bạn sẽ dùng khi đưa trang lên hosting thật (Vercel, Netlify…).</p>
+      </div>
+
+      <div class="card">
+        <div class="card__head"><div class="card__title">❓ Câu hỏi thường gặp</div></div>
+        <details class="faq">
+          <summary>Thay đổi của tôi biến mất sau khi tải lại trang?</summary>
+          <p>Bạn quên bấm nút <b>💾 Lưu thay đổi</b>. Mọi chỉnh sửa chỉ được ghi nhớ sau khi lưu.</p>
+        </details>
+        <details class="faq">
+          <summary>Làm sao quay về giao diện gốc ban đầu?</summary>
+          <p>Bấm nút <b>↺ Khôi phục mặc định</b> ở góc trên bên trái — toàn bộ cấu hình sẽ về như lúc mới tải công cụ.</p>
+        </details>
+        <details class="faq">
+          <summary>Trang quản trị này có hiện với người dùng bình thường không?</summary>
+          <p>Không. Trang <code>admin.html</code> hoàn toàn tách riêng, không có đường link nào tới nó từ trang người dùng hay thanh công cụ.</p>
+        </details>
+        <details class="faq">
+          <summary>Tôi muốn ẩn bớt một khối nhập liệu, phải làm sao?</summary>
+          <p>Vào tab <b>🧩 Tiện ích & bố cục</b>, tắt công tắc bên phải dòng tương ứng, rồi bấm Lưu thay đổi.</p>
+        </details>
+        <details class="faq">
+          <summary>Vì sao tôi phải tự tải ảnh tướng/trang phục lên, công cụ không tự lấy từ web Liên Quân được sao?</summary>
+          <p>Ảnh tướng và trang phục trong game là nội dung có bản quyền của Garena/Tencent, công cụ này không được phép tự động sao chép lại. Bạn cần tự chụp ảnh hoặc dùng ảnh mình có quyền sử dụng, tải lên qua tab <b>🖼️ Thư viện trang phục</b>.</p>
+        </details>
+        <details class="faq">
+          <summary>Tôi tải nhiều ảnh thì có bị đầy bộ nhớ không?</summary>
+          <p>Ảnh được lưu ngay trong trình duyệt (localStorage), dung lượng tổng thường giới hạn khoảng 5MB. Nếu thêm rất nhiều ảnh độ phân giải cao, trình duyệt có thể báo lỗi khi lưu — hãy nén ảnh nhỏ lại (dưới 300–500KB mỗi ảnh) trước khi tải lên.</p>
+        </details>
+      </div>
+    </section>
+
+    <!-- BRANDING -->
+    <section class="panel" data-panel="branding">
+      <h2 class="section-title">Thương hiệu</h2>
+      <p class="section-sub">Tên trang, khẩu hiệu, logo và link hỗ trợ hiển thị trên trang người dùng.</p>
+      <div class="card">
+        <div class="row2">
+          <div class="field"><label class="flabel">Tên trang</label><input type="text" id="f_siteName"></div>
+          <div class="field"><label class="flabel">Khẩu hiệu / tagline</label><input type="text" id="f_tagline"></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label class="flabel">Emoji / ký tự logo</label><input type="text" id="f_logoEmoji" maxlength="4"></div>
+          <div class="field"><label class="flabel">Link group hỗ trợ</label><input type="text" id="f_supportLink" placeholder="https://zalo.me/..."></div>
+        </div>
+        <div class="field">
+          <label class="flabel">Ảnh logo (tuỳ chọn, thay cho emoji)</label>
+          <div class="dropzone" id="dz_logo">
+            <div class="dz-title">Tải logo lên</div>
+            <div>PNG/JPG vuông, nền trong suốt là đẹp nhất</div>
+            <input type="file" accept="image/*" id="f_logoImage">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- THEME -->
+    <section class="panel" data-panel="theme">
+      <h2 class="section-title">Màu sắc & nền</h2>
+      <p class="section-sub">Toàn bộ giao diện trang người dùng dùng các biến màu này — 10 màu đầu áp cho phần nội dung chính, 5 màu cuối (đánh dấu riêng) áp cho thanh menu bên trái.</p>
+      <div class="card">
+        <div class="card__head"><div class="card__title">Bảng màu</div></div>
+        <div class="swatch-row" id="swatchRow"></div>
+      </div>
+      <div class="card">
+        <div class="card__head"><div class="card__title">Ảnh nền trang (tuỳ chọn)</div></div>
+        <div class="dropzone" id="dz_bg">
+          <div class="dz-title">Tải ảnh nền</div>
+          <div>Sẽ được phủ lớp tối để chữ dễ đọc</div>
+          <input type="file" accept="image/*" id="f_bgImage">
+        </div>
+        <button class="btn ghost small" id="clearBgBtn" style="margin-top:10px;width:auto;">Xoá ảnh nền</button>
+      </div>
+    </section>
+
+    <!-- WIDGETS -->
+    <section class="panel" data-panel="widgets">
+      <h2 class="section-title">Tiện ích & bố cục</h2>
+      <p class="section-sub">Đổi tên, ẩn/hiện, và sắp xếp thứ tự các khối tiện ích trên trang ghép ảnh. Tất cả đều đang mở miễn phí.</p>
+      <div class="card">
+        <div id="widgetRows"></div>
+      </div>
+    </section>
+
+    <!-- LIBRARY -->
+    <section class="panel" data-panel="library">
+      <h2 class="section-title">Thư viện trang phục</h2>
+      <p class="section-sub">Thêm ảnh tướng/trang phục do bạn tự tải lên (không tự động lấy từ web Liên Quân vì lý do bản quyền). Người dùng sẽ tìm và chọn từ danh sách này ở mục "Trang phục tiến hoá".</p>
+
+      <div class="card">
+        <div class="card__head"><div class="card__title">+ Thêm trang phục mới</div></div>
+        <div class="row2">
+          <div class="field">
+            <label class="flabel">Tên tướng</label>
+            <input type="text" id="lib_hero" list="heroDatalist" placeholder="Chọn hoặc gõ tên tướng mới…">
+            <datalist id="heroDatalist"></datalist>
+          </div>
+          <div class="field">
+            <label class="flabel">Tên trang phục</label>
+            <input type="text" id="lib_skinName" placeholder="VD: Xạ Vương, Tiến hoá bản 2…">
+          </div>
+        </div>
+        <div class="field">
+          <label class="flabel">Ảnh trang phục (tải từ máy)</label>
+          <div class="dropzone" id="dz_lib_image">
+            <div class="dz-title">Tải ảnh lên</div>
+            <div>PNG/JPG, nên nén dưới 500KB</div>
+            <input type="file" accept="image/*" id="lib_image">
+          </div>
+        </div>
+        <label class="checkline"><input type="checkbox" id="lib_hasButton"> Kèm phụ kiện: Nút bấm</label>
+        <label class="checkline"><input type="checkbox" id="lib_hasKillNotice"> Kèm phụ kiện: Thông báo hạ</label>
+        <button class="btn gold" id="addLibBtn" style="margin-top:6px;">+ Thêm vào thư viện</button>
+      </div>
+
+      <div class="card">
+        <div class="card__head">
+          <div class="card__title">Danh sách hiện có</div>
+          <span class="card__hint" id="libCount"></span>
+        </div>
+        <div class="skin-grid" id="libGrid"></div>
+      </div>
+    </section>
+
+    <!-- PREVIEW -->
+    <section class="panel" data-panel="preview">
+      <h2 class="section-title">Xem trước</h2>
+      <p class="section-sub">Lưu thay đổi trước, sau đó bấm làm mới để xem kết quả áp dụng trên trang người dùng.</p>
+      <div class="top-actions" style="justify-content:flex-start;margin-bottom:12px;">
+        <button class="btn ghost small" id="refreshPreviewBtn">↻ Làm mới xem trước</button>
+        <a class="btn ghost small" href="index.html" target="_blank" style="text-decoration:none;">↗ Mở tab riêng</a>
+      </div>
+      <div class="preview-frame-wrap">
+        <iframe id="previewFrame" src="index.html"></iframe>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg"></span></div>
+
+<script src="config.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>
