@@ -13,8 +13,7 @@ let state = {
   selectedSkinIds: new Set(),
   heroDisplaySelectedIds: new Set(),
   gridImages: [],   // { id, url, name?, rankImage? } — ảnh dùng cho tiện ích ghép lưới
-  gridCols: "auto",
-  gridRatio: "1",   // tỉ lệ khung mỗi ô: "1" (vuông), "0.75" (dọc 3:4), "0.667" (dọc 2:3)
+  gridCols: "auto", // dùng làm gợi ý "số ảnh mỗi hàng" cho thuật toán ghép hàng cân chiều cao (justified rows)
   gridHeroImg: null,     // dataURL ảnh acc hiện tại, hiển thị to ở trên lưới
   gridSwapPick: null,    // index đang được chọn để chờ đổi chỗ (bấm trực tiếp vào ảnh đã ghép)
   lastGridLayout: null   // toạ độ layout của lần vẽ lưới gần nhất, dùng để dò ô khi bấm vào canvas
@@ -48,22 +47,14 @@ const WIDGET_TEMPLATES = {
       </div>
 
       <div class="field" style="margin-top:14px;">
-        <label class="flabel">Số cột lưới</label>
+        <label class="flabel">Số ảnh mỗi hàng (ước lượng)</label>
         <div class="seg" id="gridColsSeg">
-          <button type="button" class="active" data-cols="auto">Tự động</button>
-          <button type="button" data-cols="2">2 cột</button>
-          <button type="button" data-cols="3">3 cột</button>
-          <button type="button" data-cols="4">4 cột</button>
+          <button type="button" class="active" data-cols="auto">Tự động (~4)</button>
+          <button type="button" data-cols="2">2 ảnh</button>
+          <button type="button" data-cols="3">3 ảnh</button>
+          <button type="button" data-cols="4">4 ảnh</button>
         </div>
-      </div>
-
-      <div class="field" style="margin-top:14px;">
-        <label class="flabel">Tỉ lệ mỗi ô (ảnh bên trong luôn giữ nguyên, không cắt)</label>
-        <div class="seg" id="gridRatioSeg">
-          <button type="button" class="active" data-ratio="1">Vuông</button>
-          <button type="button" data-ratio="0.75">Dọc 3:4</button>
-          <button type="button" data-ratio="0.667">Dọc 2:3</button>
-        </div>
+        <div class="card__hint" style="margin-top:6px;">Ảnh trong cùng 1 hàng sẽ tự co giãn về chung 1 chiều cao (giữ nguyên tỉ lệ gốc, không méo, không viền trắng thừa) rồi lấp đầy hết bề rộng hàng; hết chỗ sẽ tự ngắt xuống hàng mới.</div>
       </div>
 
       <div class="dropzone" id="dz_gridImages">
@@ -689,17 +680,6 @@ function setupGridMerge(){
     });
   });
 
-  const ratioSeg = document.getElementById("gridRatioSeg");
-  if (ratioSeg){
-    ratioSeg.querySelectorAll("[data-ratio]").forEach(b=>{
-      b.addEventListener("click", ()=>{
-        ratioSeg.querySelectorAll("[data-ratio]").forEach(x=>x.classList.remove("active"));
-        b.classList.add("active");
-        state.gridRatio = b.dataset.ratio;
-      });
-    });
-  }
-
   btn.addEventListener("click", generateGridComposite);
   setupGridSwapClicks();
 }
@@ -714,6 +694,59 @@ function truncateToWidth(ctx, text, maxWidth){
   return t + "…";
 }
 
+/* Xếp ảnh theo "hàng cân bằng chiều cao" (justified rows, kiểu Flickr/Google Photos):
+   mỗi ảnh giữ nguyên tỉ lệ gốc, không méo, không viền trắng thừa — các ảnh trong cùng
+   1 hàng được co giãn về CHUNG 1 chiều cao rồi lấp đầy vừa khít bề rộng hàng; hết chỗ
+   (ảnh tiếp theo sẽ vượt quá bề rộng) thì tự ngắt xuống hàng mới. targetPerRow chỉ là
+   gợi ý ban đầu để ước lượng chiều cao hàng (ảnh to nhất mỗi hàng ~ 1/targetPerRow bề rộng),
+   số ảnh thực tế mỗi hàng vẫn co giãn tự nhiên theo tỉ lệ từng ảnh.  */
+async function layoutJustifiedRows(images, containerWidth, gap, targetPerRow, nameH){
+  const loaded = await Promise.all(images.map(async (item, i) => {
+    try{ const img = await loadImg(item.url); return { i, item, aspect: (img.width / img.height) || 1 }; }
+    catch(e){ return { i, item, aspect: 1 }; }
+  }));
+
+  const perRow = Math.max(1, Math.min(targetPerRow, loaded.length));
+  const avgAspect = loaded.reduce((s,l)=> s + l.aspect, 0) / loaded.length || 1;
+  const guessH = (containerWidth - gap*(perRow-1)) / (perRow * avgAspect);
+  const targetRowH = Math.max(70, Math.min(guessH, 340)); // chiều cao hàng nhỏ nhất có thể, không quá to/nhỏ
+
+  // đóng hàng theo kiểu "greedy": thêm ảnh vào hàng hiện tại tới khi vượt bề rộng thì ngắt dòng
+  const rowsRaw = [];
+  let current = [];
+  let currentW = 0;
+  loaded.forEach(l => {
+    const wAtTarget = l.aspect * targetRowH;
+    const extra = current.length ? gap : 0;
+    if (current.length && (currentW + extra + wAtTarget) > containerWidth){
+      rowsRaw.push(current);
+      current = [l];
+      currentW = wAtTarget;
+    } else {
+      current.push(l);
+      currentW += extra + wAtTarget;
+    }
+  });
+  if (current.length) rowsRaw.push(current);
+
+  // "justify" từng hàng: giải lại chiều cao thật của hàng đó sao cho tổng bề rộng khớp vừa khít containerWidth
+  const items = [];
+  let y = 0;
+  rowsRaw.forEach(row => {
+    const totalAspect = row.reduce((s,r)=> s + r.aspect, 0);
+    const rowH = Math.max(56, (containerWidth - gap*(row.length-1)) / totalAspect);
+    let x = 0;
+    row.forEach(r => {
+      const w = r.aspect * rowH;
+      items.push({ index: r.i, item: r.item, x, y, w, h: rowH });
+      x += w + gap;
+    });
+    y += rowH + nameH + gap;
+  });
+  const gridH = items.length ? (y - gap) : 0;
+  return { items, gridH };
+}
+
 async function renderGridComposite(highlightIndex){
   const n = state.gridImages.length;
   if (n < 2) return false;
@@ -722,23 +755,18 @@ async function renderGridComposite(highlightIndex){
   const ctx = canvas.getContext("2d");
   const canvasWrap = document.getElementById("canvasWrap");
 
-  // tính số cột / hàng của lưới trước — hàng tự động ngắt xuống dòng mới khi đủ số cột
-  let cols = state.gridCols === "auto" ? Math.ceil(Math.sqrt(n)) : parseInt(state.gridCols, 10);
-  cols = Math.max(1, Math.min(cols, n));
-  const rows = Math.ceil(n / cols);
+  // "Số ảnh mỗi hàng" chỉ là gợi ý ước lượng chiều cao ban đầu cho thuật toán ghép hàng cân chiều cao bên dưới
+  const targetPerRow = state.gridCols === "auto" ? 4 : (parseInt(state.gridCols, 10) || 4);
 
-  const ratio = parseFloat(state.gridRatio) || 1; // tỉ lệ khung ô: rộng/cao — chỉnh được (vuông / dọc 3:4 / dọc 2:3)
   const hasNames = state.gridImages.some(g => g.name);
   const nameH = hasNames ? 22 : 0; // chỗ in tên skin bằng chữ, không khung, ngay dưới mỗi ảnh
 
   const pad = 20, gap = 10;
-  const minCellW = 130; // đảm bảo ảnh skin đủ lớn, không bị thu nhỏ quá khi có nhiều cột
-  const W = Math.max(720, Math.round(pad*2 + cols*minCellW + gap*(cols-1)));
+  const minCellW = 160;
+  const W = Math.max(720, Math.round(pad*2 + targetPerRow*minCellW + gap*(targetPerRow-1)));
   const innerW = W - pad*2;
-  const cellW = (innerW - gap*(cols-1)) / cols;
-  const cellH = cellW / ratio; // ảnh bên trong luôn giữ nguyên tỉ lệ gốc (contain), không cắt méo
-  const rowH = cellH + nameH;
-  const gridH = rows*rowH + (rows-1)*gap;
+
+  const { items: gridItems, gridH } = await layoutJustifiedRows(state.gridImages, innerW, gap, targetPerRow, nameH);
 
   const heroGap = (state.gridHeroImg || state.overviewImg) ? 16 : 0;
   const bottomBar = 34; // chỗ cho watermark
@@ -813,10 +841,11 @@ async function renderGridComposite(highlightIndex){
     gridTop = pad + heroH + heroGap;
   }
 
-  for (let i = 0; i < n; i++){
-    const r = Math.floor(i / cols), c = i % cols;
-    const item = state.gridImages[i];
-    const x = pad + c*(cellW+gap), y = gridTop + r*(rowH+gap);
+  const absItems = [];
+  for (const g of gridItems){
+    const i = g.index, item = g.item;
+    const x = pad + g.x, y = gridTop + g.y, cw = g.w, ch = g.h;
+    absItems.push({ index: i, x, y, w: cw, h: ch });
     const picked = (i === state.gridSwapPick);
     const hover = (i === highlightIndex);
     try{
@@ -825,25 +854,24 @@ async function renderGridComposite(highlightIndex){
       const rad = 8;
       ctx.beginPath();
       ctx.moveTo(x+rad, y);
-      ctx.arcTo(x+cellW, y, x+cellW, y+cellH, rad);
-      ctx.arcTo(x+cellW, y+cellH, x, y+cellH, rad);
-      ctx.arcTo(x, y+cellH, x, y, rad);
-      ctx.arcTo(x, y, x+cellW, y, rad);
+      ctx.arcTo(x+cw, y, x+cw, y+ch, rad);
+      ctx.arcTo(x+cw, y+ch, x, y+ch, rad);
+      ctx.arcTo(x, y+ch, x, y, rad);
+      ctx.arcTo(x, y, x+cw, y, rad);
       ctx.closePath();
       ctx.clip();
-      ctx.fillStyle = cfg.theme.surface;
-      ctx.fillRect(x, y, cellW, cellH);
-      drawContain(ctx, img, x, y, cellW, cellH); // giữ nguyên tỉ lệ ảnh, không cắt méo
+      // ô có đúng tỉ lệ ảnh gốc nên ảnh lấp đầy vừa khít, không cần vẽ nền (không viền trắng thừa)
+      ctx.drawImage(img, x, y, cw, ch);
       ctx.restore();
       ctx.strokeStyle = (picked || hover) ? cfg.theme.accent : cfg.theme.border;
       ctx.lineWidth = (picked || hover) ? 3 : 1.5;
-      ctx.strokeRect(x, y, cellW, cellH);
+      ctx.strokeRect(x, y, cw, ch);
 
       // ảnh bậc/hạng do admin lưu khi thêm skin — huy hiệu nhỏ góc trên trái, cũng giữ nguyên không cắt
       if (item.rankImage){
         try{
           const rankImg = await loadImg(item.rankImage);
-          const rw = Math.min(cellW, cellH) * 0.34;
+          const rw = Math.min(cw, ch) * 0.34;
           const rh = rw * (rankImg.height / rankImg.width);
           drawContain(ctx, rankImg, x+4, y+4, rw, Math.max(rh, rw*0.4));
         }catch(e){}
@@ -851,19 +879,19 @@ async function renderGridComposite(highlightIndex){
 
       // số thứ tự nhỏ góc dưới trái, giống thẻ ảnh gốc
       ctx.fillStyle = "#0009";
-      ctx.fillRect(x+4, y+cellH-20, 20, 16);
+      ctx.fillRect(x+4, y+ch-20, 20, 16);
       ctx.fillStyle = "#fff";
       ctx.font = "bold 10px sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText(String(i+1), x+14, y+cellH-8);
+      ctx.fillText(String(i+1), x+14, y+ch-8);
 
       // tên skin in chữ thường, không khung, ngay dưới ảnh
       if (item.name){
         ctx.font = "600 11px sans-serif";
         ctx.textAlign = "center";
         ctx.fillStyle = cfg.theme.text;
-        const label = truncateToWidth(ctx, item.name, cellW - 6);
-        ctx.fillText(label, x + cellW/2, y + cellH + nameH - 6);
+        const label = truncateToWidth(ctx, item.name, cw - 6);
+        ctx.fillText(label, x + cw/2, y + ch + nameH - 6);
       }
     }catch(e){}
   }
@@ -879,7 +907,7 @@ async function renderGridComposite(highlightIndex){
   ctx.fillStyle = cfg.theme.accent;
   ctx.fillText("MIỄN PHÍ · " + cfg.siteName, W-pad, H-14);
 
-  state.lastGridLayout = { pad, gap, cols, rows, cellW, cellH: rowH, gridTop, n, canvasW: W, canvasH: H };
+  state.lastGridLayout = { items: absItems, n, canvasW: W, canvasH: H };
   return true;
 }
 
@@ -907,16 +935,11 @@ function setupGridSwapClicks(){
     const rect = canvas.getBoundingClientRect();
     const scaleX = layout.canvasW / rect.width, scaleY = layout.canvasH / rect.height;
     const cx = (e.clientX - rect.left) * scaleX, cy = (e.clientY - rect.top) * scaleY;
-    const { pad, gap, cols, rows, cellW, cellH, gridTop, n } = layout;
-    if (cx < pad || cy < gridTop) return;
-    const c = Math.floor((cx - pad) / (cellW + gap));
-    const r = Math.floor((cy - gridTop) / (cellH + gap));
-    if (c < 0 || c >= cols || r < 0 || r >= rows) return;
-    // bỏ qua nếu bấm vào khoảng cách (gap) giữa 2 ô
-    if ((cx - pad) - c*(cellW+gap) > cellW) return;
-    if ((cy - gridTop) - r*(cellH+gap) > cellH) return;
-    const idx = r*cols + c;
-    if (idx >= n) return;
+    // mỗi ảnh giờ có kích thước riêng (hàng cân chiều cao) nên dò ô bằng cách kiểm tra điểm bấm
+    // có rơi vào đúng hình chữ nhật của ảnh nào trong danh sách layout đã lưu hay không
+    const hit = layout.items.find(it => cx >= it.x && cx <= it.x + it.w && cy >= it.y && cy <= it.y + it.h);
+    if (!hit) return;
+    const idx = hit.index;
 
     if (state.gridSwapPick === null){
       state.gridSwapPick = idx;
