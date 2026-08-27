@@ -36,7 +36,7 @@ const WIDGET_TEMPLATES = {
         <div class="card__title">🧩 ${w.label}</div>
         <span class="tag" style="position:static;">MỚI</span>
       </div>
-      <div class="card__hint" style="margin-bottom:12px;">${w.hint} · chọn số cột rồi bấm Ghép Lưới Ảnh. Sau khi ghép xong, bấm trực tiếp vào 2 ảnh trên khung kết quả bên phải để đổi chỗ cho nhau.</div>
+      <div class="card__hint" style="margin-bottom:12px;">${w.hint} · chọn số cột rồi bấm Ghép Lưới Ảnh. Nếu bạn đã tải "Ảnh tổng quan tài khoản" ở mục riêng phía trên (bảng thông tin nhỏ), nó sẽ tự hiển thị cạnh ảnh acc chính ở đây. Sau khi ghép xong, bấm trực tiếp vào 2 ảnh trên khung kết quả bên phải để đổi chỗ cho nhau.</div>
 
       <div class="field">
         <label class="flabel">Ảnh acc hiện tại (hiển thị to ở trên)</label>
@@ -729,28 +729,41 @@ async function renderGridComposite(highlightIndex){
 
   const ratio = parseFloat(state.gridRatio) || 1; // tỉ lệ khung ô: rộng/cao — chỉnh được (vuông / dọc 3:4 / dọc 2:3)
   const hasNames = state.gridImages.some(g => g.name);
-  const nameH = hasNames ? 20 : 0; // chỗ in tên skin bằng chữ, không khung, ngay dưới mỗi ảnh
+  const nameH = hasNames ? 22 : 0; // chỗ in tên skin bằng chữ, không khung, ngay dưới mỗi ảnh
 
-  const W = 720;
-  const pad = 20, gap = 8;
+  const pad = 20, gap = 10;
+  const minCellW = 130; // đảm bảo ảnh skin đủ lớn, không bị thu nhỏ quá khi có nhiều cột
+  const W = Math.max(720, Math.round(pad*2 + cols*minCellW + gap*(cols-1)));
   const innerW = W - pad*2;
   const cellW = (innerW - gap*(cols-1)) / cols;
   const cellH = cellW / ratio; // ảnh bên trong luôn giữ nguyên tỉ lệ gốc (contain), không cắt méo
   const rowH = cellH + nameH;
   const gridH = rows*rowH + (rows-1)*gap;
 
-  const heroGap = state.gridHeroImg ? 16 : 0;
+  const heroGap = (state.gridHeroImg || state.overviewImg) ? 16 : 0;
   const bottomBar = 34; // chỗ cho watermark
 
-  // ảnh acc hiện tại (ảnh lớn) — nạp trước để tính chiều cao khung theo đúng tỉ lệ thật của ảnh,
-  // tránh vừa dư khoảng trắng vừa tránh phải cắt xén
-  let heroImg = null, heroH = 0;
-  if (state.gridHeroImg){
-    try{
-      heroImg = await loadImg(state.gridHeroImg);
-      const natural = innerW * (heroImg.height / heroImg.width);
-      heroH = Math.round(Math.min(Math.max(natural, W*0.35), W*0.95));
-    }catch(e){ heroH = Math.round(W*0.62); }
+  // ảnh acc hiện tại (ảnh lớn, giữ nguyên) + ảnh tổng quan tài khoản (bảng thông tin nhỏ, nếu có)
+  // hiển thị cạnh nhau ở trên cùng — nạp trước để tính chiều cao khung theo đúng tỉ lệ thật, không cắt xén
+  let heroImg = null, overviewImg = null, heroH = 0;
+  const hasOverview = !!state.overviewImg;
+  const hasHero = !!state.gridHeroImg;
+  if (hasHero){ try{ heroImg = await loadImg(state.gridHeroImg); }catch(e){} }
+  if (hasOverview){ try{ overviewImg = await loadImg(state.overviewImg); }catch(e){} }
+
+  // tỉ lệ cột: nếu có cả 2 ảnh, ảnh tổng quan (bảng thông tin) chiếm ~32% bề rộng, ảnh acc chính chiếm phần còn lại
+  const ovW = (hasOverview && hasHero) ? Math.round(innerW * 0.32) : innerW;
+  const heroW = (hasOverview && hasHero) ? (innerW - ovW - gap) : innerW;
+  if (heroImg){
+    const natural = heroW * (heroImg.height / heroImg.width);
+    heroH = Math.round(Math.min(Math.max(natural, W*0.32), W*0.95));
+  }
+  if (overviewImg && !heroImg){
+    const natural = innerW * (overviewImg.height / overviewImg.width);
+    heroH = Math.round(Math.min(Math.max(natural, W*0.32), W*0.95));
+  } else if (overviewImg && heroImg){
+    // ép ảnh tổng quan theo cùng chiều cao với ảnh acc chính để 2 khung thẳng hàng
+    heroH = heroH;
   }
 
   const H = pad + heroH + heroGap + gridH + pad + bottomBar;
@@ -768,27 +781,35 @@ async function renderGridComposite(highlightIndex){
 
   let gridTop = pad;
 
-  // ảnh acc hiện tại — to, giữ nguyên toàn bộ ảnh, phía trên
-  if (heroImg){
-    try{
-      ctx.save();
-      const rad = 12;
-      ctx.beginPath();
-      ctx.moveTo(pad+rad, pad);
-      ctx.arcTo(pad+innerW, pad, pad+innerW, pad+heroH, rad);
-      ctx.arcTo(pad+innerW, pad+heroH, pad, pad+heroH, rad);
-      ctx.arcTo(pad, pad+heroH, pad, pad, rad);
-      ctx.arcTo(pad, pad, pad+innerW, pad, rad);
-      ctx.closePath();
-      ctx.clip();
-      ctx.fillStyle = cfg.theme.surface;
-      ctx.fillRect(pad, pad, innerW, heroH);
-      drawContain(ctx, heroImg, pad, pad, innerW, heroH); // không cắt xén ảnh lớn
-      ctx.restore();
-      ctx.strokeStyle = cfg.theme.primary;
-      ctx.lineWidth = 3;
-      ctx.strokeRect(pad, pad, innerW, heroH);
-    }catch(e){}
+  function drawRoundedBox(x, y, w, h, rad, img){
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(x+rad, y);
+    ctx.arcTo(x+w, y, x+w, y+h, rad);
+    ctx.arcTo(x+w, y+h, x, y+h, rad);
+    ctx.arcTo(x, y+h, x, y, rad);
+    ctx.arcTo(x, y, x+w, y, rad);
+    ctx.closePath();
+    ctx.clip();
+    ctx.fillStyle = cfg.theme.surface;
+    ctx.fillRect(x, y, w, h);
+    if (img) drawContain(ctx, img, x, y, w, h); // không cắt xén ảnh
+    ctx.restore();
+    ctx.strokeStyle = cfg.theme.primary;
+    ctx.lineWidth = 3;
+    ctx.strokeRect(x, y, w, h);
+  }
+
+  if (heroImg || overviewImg){
+    if (overviewImg && heroImg){
+      // ảnh tổng quan (bảng thông tin nhỏ) bên trái, ảnh acc chính (lớn) bên phải — như ảnh mẫu
+      drawRoundedBox(pad, pad, ovW, heroH, 12, overviewImg);
+      drawRoundedBox(pad + ovW + gap, pad, heroW, heroH, 12, heroImg);
+    } else if (heroImg){
+      drawRoundedBox(pad, pad, innerW, heroH, 12, heroImg);
+    } else if (overviewImg){
+      drawRoundedBox(pad, pad, innerW, heroH, 12, overviewImg);
+    }
     gridTop = pad + heroH + heroGap;
   }
 
