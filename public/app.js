@@ -12,8 +12,9 @@ let state = {
   quantity: 1,
   selectedSkinIds: new Set(),
   heroDisplaySelectedIds: new Set(),
-  gridImages: [],   // { id, url } — ảnh dùng cho tiện ích ghép lưới
+  gridImages: [],   // { id, url, name?, rankImage? } — ảnh dùng cho tiện ích ghép lưới
   gridCols: "auto",
+  gridRatio: "1",   // tỉ lệ khung mỗi ô: "1" (vuông), "0.75" (dọc 3:4), "0.667" (dọc 2:3)
   gridHeroImg: null,     // dataURL ảnh acc hiện tại, hiển thị to ở trên lưới
   gridSwapPick: null,    // index đang được chọn để chờ đổi chỗ (bấm trực tiếp vào ảnh đã ghép)
   lastGridLayout: null   // toạ độ layout của lần vẽ lưới gần nhất, dùng để dò ô khi bấm vào canvas
@@ -53,6 +54,15 @@ const WIDGET_TEMPLATES = {
           <button type="button" data-cols="2">2 cột</button>
           <button type="button" data-cols="3">3 cột</button>
           <button type="button" data-cols="4">4 cột</button>
+        </div>
+      </div>
+
+      <div class="field" style="margin-top:14px;">
+        <label class="flabel">Tỉ lệ mỗi ô (ảnh bên trong luôn giữ nguyên, không cắt)</label>
+        <div class="seg" id="gridRatioSeg">
+          <button type="button" class="active" data-ratio="1">Vuông</button>
+          <button type="button" data-ratio="0.75">Dọc 3:4</button>
+          <button type="button" data-ratio="0.667">Dọc 2:3</button>
         </div>
       </div>
 
@@ -396,7 +406,12 @@ function setupGridNameSearch(){
       card.addEventListener("click", ()=>{
         const item = library.find(it => it.id === card.dataset.id);
         if (!item || !item.image){ toast("Trang phục này chưa có ảnh, không thêm được"); return; }
-        state.gridImages.push({ id: "g" + Date.now() + Math.random().toString(36).slice(2,7), url: item.image });
+        state.gridImages.push({
+          id: "g" + Date.now() + Math.random().toString(36).slice(2,7),
+          url: item.image,
+          name: item.skinName ? `${item.hero} - ${item.skinName}` : item.hero,
+          rankImage: item.rankImage || null
+        });
         renderGridThumbs();
         toast(`Đã thêm "${item.hero} · ${item.skinName||"mặc định"}" vào lưới`);
       });
@@ -495,8 +510,10 @@ async function generateComposite(){
     try{
       const img = await loadImg(state.overviewImg);
       ctx.save();
+      ctx.fillStyle = cfg.theme.surface;
+      ctx.fillRect(pad, pad, innerW, innerH);
       ctx.filter = `brightness(${100+state.brightness}%)`;
-      drawCover(ctx, img, pad, pad, innerW, innerH);
+      drawContain(ctx, img, pad, pad, innerW, innerH); // giữ nguyên toàn bộ ảnh, không cắt xén
       ctx.restore();
     }catch(e){}
   } else {
@@ -526,7 +543,9 @@ async function generateComposite(){
       try{
         const im = await loadImg(thumbs[i]);
         ctx.save();
-        drawCover(ctx, im, pad + i*(tw+8), ty, tw, th);
+        ctx.fillStyle = cfg.theme.surface;
+        ctx.fillRect(pad + i*(tw+8), ty, tw, th);
+        drawContain(ctx, im, pad + i*(tw+8), ty, tw, th);
         ctx.strokeStyle = cfg.theme.border; ctx.lineWidth=2;
         ctx.strokeRect(pad + i*(tw+8), ty, tw, th);
         ctx.restore();
@@ -548,7 +567,9 @@ async function generateComposite(){
         if (it.image){
           const im = await loadImg(it.image);
           ctx.save();
-          drawCover(ctx, im, sx, sy, sSize, sSize);
+          ctx.fillStyle = cfg.theme.surfaceAlt;
+          ctx.fillRect(sx, sy, sSize, sSize);
+          drawContain(ctx, im, sx, sy, sSize, sSize);
           ctx.restore();
         } else {
           ctx.fillStyle = cfg.theme.surfaceAlt;
@@ -668,6 +689,17 @@ function setupGridMerge(){
     });
   });
 
+  const ratioSeg = document.getElementById("gridRatioSeg");
+  if (ratioSeg){
+    ratioSeg.querySelectorAll("[data-ratio]").forEach(b=>{
+      b.addEventListener("click", ()=>{
+        ratioSeg.querySelectorAll("[data-ratio]").forEach(x=>x.classList.remove("active"));
+        b.classList.add("active");
+        state.gridRatio = b.dataset.ratio;
+      });
+    });
+  }
+
   btn.addEventListener("click", generateGridComposite);
   setupGridSwapClicks();
 }
@@ -675,6 +707,13 @@ function setupGridMerge(){
 /* Vẽ lưới (không lưu lịch sử / không toast) — dùng chung cho lần ghép đầu tiên
    và cho mỗi lần bấm-đổi-chỗ để redraw lại. highlightIndex: ô đang được chọn
    chờ đổi chỗ (viền vàng), hoặc null nếu không có ô nào đang chọn. */
+function truncateToWidth(ctx, text, maxWidth){
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let t = text;
+  while (t.length > 1 && ctx.measureText(t + "…").width > maxWidth) t = t.slice(0, -1);
+  return t + "…";
+}
+
 async function renderGridComposite(highlightIndex){
   const n = state.gridImages.length;
   if (n < 2) return false;
@@ -683,21 +722,36 @@ async function renderGridComposite(highlightIndex){
   const ctx = canvas.getContext("2d");
   const canvasWrap = document.getElementById("canvasWrap");
 
-  // tính số cột / hàng của lưới trước để suy ra chiều cao canvas cần thiết
+  // tính số cột / hàng của lưới trước — hàng tự động ngắt xuống dòng mới khi đủ số cột
   let cols = state.gridCols === "auto" ? Math.ceil(Math.sqrt(n)) : parseInt(state.gridCols, 10);
   cols = Math.max(1, Math.min(cols, n));
   const rows = Math.ceil(n / cols);
+
+  const ratio = parseFloat(state.gridRatio) || 1; // tỉ lệ khung ô: rộng/cao — chỉnh được (vuông / dọc 3:4 / dọc 2:3)
+  const hasNames = state.gridImages.some(g => g.name);
+  const nameH = hasNames ? 20 : 0; // chỗ in tên skin bằng chữ, không khung, ngay dưới mỗi ảnh
 
   const W = 720;
   const pad = 20, gap = 8;
   const innerW = W - pad*2;
   const cellW = (innerW - gap*(cols-1)) / cols;
-  const cellH = cellW; // mỗi ô vuông, ảnh bên trong giữ nguyên tỉ lệ gốc (contain), không cắt
-  const gridH = rows*cellH + (rows-1)*gap;
+  const cellH = cellW / ratio; // ảnh bên trong luôn giữ nguyên tỉ lệ gốc (contain), không cắt méo
+  const rowH = cellH + nameH;
+  const gridH = rows*rowH + (rows-1)*gap;
 
-  const heroH = state.gridHeroImg ? Math.round(W * 0.62) : 0; // ảnh acc hiện tại, to, hiển thị trên cùng
   const heroGap = state.gridHeroImg ? 16 : 0;
   const bottomBar = 34; // chỗ cho watermark
+
+  // ảnh acc hiện tại (ảnh lớn) — nạp trước để tính chiều cao khung theo đúng tỉ lệ thật của ảnh,
+  // tránh vừa dư khoảng trắng vừa tránh phải cắt xén
+  let heroImg = null, heroH = 0;
+  if (state.gridHeroImg){
+    try{
+      heroImg = await loadImg(state.gridHeroImg);
+      const natural = innerW * (heroImg.height / heroImg.width);
+      heroH = Math.round(Math.min(Math.max(natural, W*0.35), W*0.95));
+    }catch(e){ heroH = Math.round(W*0.62); }
+  }
 
   const H = pad + heroH + heroGap + gridH + pad + bottomBar;
   canvas.width = W; canvas.height = H;
@@ -714,10 +768,9 @@ async function renderGridComposite(highlightIndex){
 
   let gridTop = pad;
 
-  // ảnh acc hiện tại — to, giữ nguyên tỉ lệ, phía trên
-  if (state.gridHeroImg){
+  // ảnh acc hiện tại — to, giữ nguyên toàn bộ ảnh, phía trên
+  if (heroImg){
     try{
-      const heroImg = await loadImg(state.gridHeroImg);
       ctx.save();
       const rad = 12;
       ctx.beginPath();
@@ -730,7 +783,7 @@ async function renderGridComposite(highlightIndex){
       ctx.clip();
       ctx.fillStyle = cfg.theme.surface;
       ctx.fillRect(pad, pad, innerW, heroH);
-      drawContain(ctx, heroImg, pad, pad, innerW, heroH);
+      drawContain(ctx, heroImg, pad, pad, innerW, heroH); // không cắt xén ảnh lớn
       ctx.restore();
       ctx.strokeStyle = cfg.theme.primary;
       ctx.lineWidth = 3;
@@ -741,11 +794,12 @@ async function renderGridComposite(highlightIndex){
 
   for (let i = 0; i < n; i++){
     const r = Math.floor(i / cols), c = i % cols;
-    const x = pad + c*(cellW+gap), y = gridTop + r*(cellH+gap);
+    const item = state.gridImages[i];
+    const x = pad + c*(cellW+gap), y = gridTop + r*(rowH+gap);
     const picked = (i === state.gridSwapPick);
     const hover = (i === highlightIndex);
     try{
-      const img = await loadImg(state.gridImages[i].url);
+      const img = await loadImg(item.url);
       ctx.save();
       const rad = 8;
       ctx.beginPath();
@@ -763,6 +817,17 @@ async function renderGridComposite(highlightIndex){
       ctx.strokeStyle = (picked || hover) ? cfg.theme.accent : cfg.theme.border;
       ctx.lineWidth = (picked || hover) ? 3 : 1.5;
       ctx.strokeRect(x, y, cellW, cellH);
+
+      // ảnh bậc/hạng do admin lưu khi thêm skin — huy hiệu nhỏ góc trên trái, cũng giữ nguyên không cắt
+      if (item.rankImage){
+        try{
+          const rankImg = await loadImg(item.rankImage);
+          const rw = Math.min(cellW, cellH) * 0.34;
+          const rh = rw * (rankImg.height / rankImg.width);
+          drawContain(ctx, rankImg, x+4, y+4, rw, Math.max(rh, rw*0.4));
+        }catch(e){}
+      }
+
       // số thứ tự nhỏ góc dưới trái, giống thẻ ảnh gốc
       ctx.fillStyle = "#0009";
       ctx.fillRect(x+4, y+cellH-20, 20, 16);
@@ -770,6 +835,15 @@ async function renderGridComposite(highlightIndex){
       ctx.font = "bold 10px sans-serif";
       ctx.textAlign = "center";
       ctx.fillText(String(i+1), x+14, y+cellH-8);
+
+      // tên skin in chữ thường, không khung, ngay dưới ảnh
+      if (item.name){
+        ctx.font = "600 11px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillStyle = cfg.theme.text;
+        const label = truncateToWidth(ctx, item.name, cellW - 6);
+        ctx.fillText(label, x + cellW/2, y + cellH + nameH - 6);
+      }
     }catch(e){}
   }
 
@@ -784,7 +858,7 @@ async function renderGridComposite(highlightIndex){
   ctx.fillStyle = cfg.theme.accent;
   ctx.fillText("MIỄN PHÍ · " + cfg.siteName, W-pad, H-14);
 
-  state.lastGridLayout = { pad, gap, cols, rows, cellW, cellH, gridTop, n, canvasW: W, canvasH: H };
+  state.lastGridLayout = { pad, gap, cols, rows, cellW, cellH: rowH, gridTop, n, canvasW: W, canvasH: H };
   return true;
 }
 

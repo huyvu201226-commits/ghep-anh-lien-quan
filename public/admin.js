@@ -143,6 +143,7 @@ function moveWidget(idx, dir){
 
 /* ---------- skin library ---------- */
 let pendingLibImage = null;
+let pendingLibRank = null;
 
 function fillHeroDatalist(){
   const dl = document.getElementById("heroDatalist");
@@ -158,6 +159,7 @@ function libCardHtml(item){
     <div class="skin-card" data-id="${item.id}">
       <div class="skin-card__img">
         ${item.image ? `<img src="${item.image}" alt="${item.skinName}">` : `<div class="skin-card__ph">${(item.hero||"?").slice(0,2)}</div>`}
+        ${item.rankImage ? `<img src="${item.rankImage}" alt="bậc" style="position:absolute;left:4px;top:4px;width:28px;height:auto;max-height:28px;object-fit:contain;">` : ""}
         <button type="button" class="lib-delete" title="Xoá">✕</button>
       </div>
       <div class="skin-card__name">${item.hero}</div>
@@ -190,6 +192,7 @@ function renderLibrary(){
 function setupLibraryForm(){
   fillHeroDatalist();
   setupImageDrop("dz_lib_image","lib_image", url=>{ pendingLibImage = url; });
+  setupImageDrop("dz_lib_rank","lib_rank", url=>{ pendingLibRank = url; });
 
   document.getElementById("addLibBtn").addEventListener("click", ()=>{
     const hero = document.getElementById("lib_hero").value.trim();
@@ -204,6 +207,7 @@ function setupLibraryForm(){
       id: uid(),
       hero, skinName,
       image: pendingLibImage,
+      rankImage: pendingLibRank,
       hasButton, hasKillNotice
     });
     try{
@@ -219,10 +223,15 @@ function setupLibraryForm(){
     document.getElementById("lib_hasButton").checked = false;
     document.getElementById("lib_hasKillNotice").checked = false;
     pendingLibImage = null;
+    pendingLibRank = null;
     const dz = document.getElementById("dz_lib_image");
     dz.classList.remove("has-img");
     dz.innerHTML = `<div class="dz-title">Tải ảnh lên</div><div>PNG/JPG, nên nén dưới 500KB</div><input type="file" accept="image/*" id="lib_image">`;
     setupImageDrop("dz_lib_image","lib_image", url=>{ pendingLibImage = url; });
+    const dzR = document.getElementById("dz_lib_rank");
+    dzR.classList.remove("has-img");
+    dzR.innerHTML = `<div class="dz-title">Tải ảnh bậc lên</div><div>Hiển thị như 1 huy hiệu nhỏ trên ảnh trang phục, không bị cắt xén</div><input type="file" accept="image/*" id="lib_rank">`;
+    setupImageDrop("dz_lib_rank","lib_rank", url=>{ pendingLibRank = url; });
 
     renderLibrary();
     toast("Đã thêm vào thư viện ✓");
